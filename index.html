@@ -12,6 +12,11 @@
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+<div class="loading" id="loading" role="status" aria-live="polite">
+  <div class="loader" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="msg"><b>llm3d</b> Plotting the models…</div>
+</div>
+
 <div class="wrap">
   <header class="top">
     <div class="brand"><span class="logo">llm3d</span><span class="tag">Compare AI models by intelligence, price and tokens used</span></div>
@@ -23,94 +28,79 @@
   </header>
 
   <main id="tab-home" class="tabpage">
-
-  <section class="panel" aria-label="3D model chart">
-    <div class="bar">
-      <div class="group" role="group" aria-label="Models">
-        <span class="lbl">Models</span>
-        <span id="companies" class="group"></span>
-        <button class="link" id="reset-models" type="button">Top model per company</button>
-        <button class="link" id="clear-models" type="button">Clear</button>
-      </div>
-    </div>
-    <div class="bar">
-      <div class="group" role="group" aria-label="Efficient-scaling target">
-        <button class="tog" id="target" aria-pressed="true" type="button">
-          <svg width="24" height="10" aria-hidden="true"><path d="M1 9 Q3 1 23 1" fill="none" stroke="var(--target)" stroke-width="2.5" stroke-dasharray="4 3"/></svg>
-          Efficient-scaling target
-        </button>
-        <div class="field" id="target-ctl" aria-disabled="false">
-          <label for="shape">Climb to 100</label>
-          <select id="shape">
-            <option value="lin">Steady climb</option>
-            <option value="quad" selected>Gentle curve</option>
-            <option value="cubic">Strong early curve</option>
-            <option value="exp">Quick gains, then plateau</option>
-            <option value="sqrt">Fast start, then eases off</option>
-            <option value="log">Most gains up front</option>
-          </select>
-          <small class="math" id="shape-math"></small>
-        </div>
-        <div class="field" id="reach-ctl" aria-disabled="false">
-          <label for="reach">Reaches 100 using</label>
-          <input type="range" id="reach" min="20" max="90" step="5" value="50">
-          <output id="reach-out" for="reach"></output>
-          <small class="math" id="reach-abs"></small>
+    <section class="panel" aria-label="3D model chart">
+      <div class="bar">
+        <div class="group" role="group" aria-label="Models">
+          <span class="lbl">Models</span>
+          <span id="companies" class="group"></span>
+          <button class="link" id="reset-models" type="button">Top model per company</button>
+          <button class="link" id="clear-models" type="button">Clear</button>
         </div>
       </div>
-    </div>
-
-    <div class="stage">
-      <div id="plot" role="img" aria-label="3D chart of Intelligence Index against cost per task and output tokens per task"></div>
-
-      <div class="overlay left" role="group" aria-label="View">
-        <button class="seg" data-view="iso" aria-pressed="true" type="button">3D overview</button>
-        <button class="seg" data-view="cost" aria-pressed="false" type="button">Intelligence vs price</button>
-        <button class="seg" data-view="tok" aria-pressed="false" type="button">Intelligence vs tokens</button>
-      </div>
-
-      <div class="overlay right" role="group" aria-label="Chart tools">
-        <button class="icon" id="tour" aria-pressed="true" type="button" title="Auto-rotate">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.5 3.5v3.3h-3.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="sr">Auto-rotate</span>
-        </button>
-        <button class="icon" id="drops" aria-pressed="false" type="button" title="Drop lines to the floor">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="5" r="2" fill="currentColor"/><circle cx="14" cy="8" r="2" fill="currentColor"/><path d="M6 7v10M14 10v7M3 17h14" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
-          <span class="sr">Drop lines</span>
-        </button>
-        <button class="icon" id="shadows" aria-pressed="false" type="button" title="Floor shadows">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9l5-4 4 3 5-4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 16l5-2 4 1 5-2" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/></svg>
-          <span class="sr">Floor shadows</span>
-        </button>
-        <div class="scale" role="group" aria-label="Scale">
-          <button class="mini" data-scale="linear" aria-pressed="true" type="button" title="Axes start at zero">Linear</button>
-          <button class="mini" data-scale="log" aria-pressed="false" type="button" title="Spread out cheap and small models">Log</button>
+      <div class="bar">
+        <div class="co target">
+          <button type="button" id="target-btn" aria-haspopup="true" aria-expanded="false">
+            <svg width="22" height="10" aria-hidden="true"><path d="M1 9 Q3 1 21 1" fill="none" stroke="var(--target)" stroke-width="2.2" stroke-dasharray="4 3"/></svg>
+            Efficient-scaling target <span class="state" id="target-state">On</span><span class="caret">▾</span>
+          </button>
+          <div class="menu wide" id="target-menu" hidden>
+            <div class="mrow">
+              <span class="mlbl">Show target</span>
+              <span class="seg2"><button type="button" class="mini" data-target="true">On</button><button type="button" class="mini" data-target="false">Off</button></span>
+            </div>
+            <div class="mrow">
+              <label class="mlbl" for="shape">Climb to 100</label>
+              <select id="shape">
+                <option value="lin">Steady climb</option>
+                <option value="quad" selected>Gentle curve</option>
+                <option value="cubic">Strong early curve</option>
+                <option value="exp">Quick gains, then plateau</option>
+                <option value="sqrt">Fast start, then eases off</option>
+                <option value="log">Most gains up front</option>
+              </select>
+              <small class="math" id="shape-math"></small>
+            </div>
+            <div class="mrow">
+              <label class="mlbl" for="reach">Reaches 100 using</label>
+              <input type="range" id="reach" min="20" max="90" step="5" value="50">
+              <output id="reach-out" for="reach"></output>
+              <small class="math" id="reach-abs"></small>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="gap-key" id="gap-key"><span>Distance to target</span><span class="grad" aria-hidden="true"></span><span>close</span><span>→</span><span>far</span></div>
-    </div>
-  </section>
+      <div class="stage">
+        <div id="plot" role="img" aria-label="3D chart of Intelligence Index against cost per task and output tokens per task"></div>
+        <div class="overlay left" role="group" aria-label="View">
+          <button class="seg" data-view="iso" aria-pressed="true" type="button">3D overview</button>
+          <button class="seg" data-view="cost" aria-pressed="false" type="button">Intelligence vs price</button>
+          <button class="seg" data-view="tok" aria-pressed="false" type="button">Intelligence vs tokens</button>
+        </div>
+        <div class="overlay right">
+          <button class="icon" id="tour" aria-pressed="true" type="button" title="Auto-rotate">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.5 3.5v3.3h-3.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="sr">Auto-rotate</span>
+          </button>
+        </div>
+        <div class="gap-key" id="gap-key"><span>Distance to target</span><span class="grad" aria-hidden="true"></span><span>close</span><span>→</span><span>far</span></div>
+      </div>
+    </section>
 
-  <section class="panel" aria-label="How the frontier moved">
-    <div class="bar qhead">
-      <h2>How the frontier moved</h2>
-      <div class="group" role="group" aria-label="Quarters" data-quarters></div>
-    </div>
-    <div class="qgrid">
-      <div class="qcell"><h3>Intelligence vs price</h3><div id="q-cost" class="qplot" role="img" aria-label="Pareto frontier of intelligence against cost per task, by quarter"></div></div>
-      <div class="qcell"><h3>Intelligence vs tokens</h3><div id="q-tok" class="qplot" role="img" aria-label="Pareto frontier of intelligence against output tokens per task, by quarter"></div></div>
-    </div>
-  </section>
-
+    <section class="panel" aria-label="How the frontier moved">
+      <div class="bar qhead">
+        <h2>How the frontier moved</h2>
+        <div class="group" role="group" aria-label="Quarters" id="quarters"></div>
+      </div>
+      <div class="qgrid stack">
+        <div class="qcell"><h3>Intelligence vs price</h3><div id="q-cost" class="qplot tall" role="img" aria-label="Pareto frontier of intelligence against cost per task, by quarter"></div></div>
+        <div class="qcell"><h3>Intelligence vs tokens</h3><div id="q-tok" class="qplot tall" role="img" aria-label="Pareto frontier of intelligence against output tokens per task, by quarter"></div></div>
+      </div>
+    </section>
   </main>
 
   <main id="tab-companies" class="tabpage" hidden>
-    <section class="panel">
-      <div class="bar qhead">
-        <h2>Each company's models</h2>
-      </div>
-    </section>
+    <section class="panel"><div class="bar"><h2 class="ptitle">Each company's models</h2></div></section>
     <div id="company-rows" class="tabpage"></div>
   </main>
 
