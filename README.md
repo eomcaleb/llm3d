@@ -12,10 +12,10 @@ Live site: https://eomcaleb.github.io/llm3d/
 
 - **Pick models by company:** each company has a dropdown listing its model families. The chart starts with the top model from a set of leading labs; every other company starts switched off.
 - **Effort levels:** a model family with several effort levels (low → max) is drawn as one line.
-- **Views:** switch between the 3D overview and two flat views, "Intelligence vs price" and "Intelligence vs tokens". Auto-rotate wanders through a few 3D angles, then glides into each flat view and pauses there. It's on by default; the rotate icon inside the chart turns it off.
-- **Efficient-scaling target:** a reference curve for a model that reaches a perfect 100 using only part of the budget. Pick how it climbs and how much budget it needs. Connectors show each model's distance from the curve, from green (close) to red (far).
+- **Views:** switch between the 3D overview and two flat views, "Intelligence vs price" and "Intelligence vs tokens". Auto-rotate slowly spins the 3D overview. It's on by default; the rotate icon inside the chart turns it off, and picking a flat view stops it.
+- **Efficient-scaling target** (on by default): a reference curve for a model that reaches a perfect 100 using only part of the budget. Pick how it climbs and how much budget it needs. Faint connectors show each model's distance from the curve, from green (close) to red (far).
 - **How the frontier moved:** Pareto frontiers of intelligence vs price and intelligence vs tokens, for the models released in each quarter.
-- **Companies tab:** the same quarterly frontiers for one company per row (Anthropic, OpenAI, SpaceXAI, DeepSeek, Kimi), with a toggle for each of the company's model families.
+- **Companies tab:** one row per company (Anthropic, OpenAI, SpaceXAI, DeepSeek, Kimi). Each row shows every model family as its own line, across its effort levels, on intelligence vs price and intelligence vs tokens charts. A toggle for each family shows or hides it.
 
 ## Run locally
 

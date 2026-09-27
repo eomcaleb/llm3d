@@ -35,11 +35,11 @@
     </div>
     <div class="bar">
       <div class="group" role="group" aria-label="Efficient-scaling target">
-        <button class="tog" id="target" aria-pressed="false" type="button">
+        <button class="tog" id="target" aria-pressed="true" type="button">
           <svg width="24" height="10" aria-hidden="true"><path d="M1 9 Q3 1 23 1" fill="none" stroke="var(--target)" stroke-width="2.5" stroke-dasharray="4 3"/></svg>
           Efficient-scaling target
         </button>
-        <div class="field" id="target-ctl" aria-disabled="true">
+        <div class="field" id="target-ctl" aria-disabled="false">
           <label for="shape">Climb to 100</label>
           <select id="shape">
             <option value="lin">Steady climb</option>
@@ -51,7 +51,7 @@
           </select>
           <small class="math" id="shape-math"></small>
         </div>
-        <div class="field" id="reach-ctl" aria-disabled="true">
+        <div class="field" id="reach-ctl" aria-disabled="false">
           <label for="reach">Reaches 100 using</label>
           <input type="range" id="reach" min="20" max="90" step="5" value="50">
           <output id="reach-out" for="reach"></output>
@@ -70,7 +70,7 @@
       </div>
 
       <div class="overlay right" role="group" aria-label="Chart tools">
-        <button class="icon" id="tour" aria-pressed="true" type="button" title="Auto-rotate through the views">
+        <button class="icon" id="tour" aria-pressed="true" type="button" title="Auto-rotate">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.5 3.5v3.3h-3.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span class="sr">Auto-rotate</span>
         </button>
@@ -88,7 +88,7 @@
         </div>
       </div>
 
-      <div class="gap-key" id="gap-key" hidden><span>Distance to target</span><span class="grad" aria-hidden="true"></span><span>close</span><span>→</span><span>far</span></div>
+      <div class="gap-key" id="gap-key"><span>Distance to target</span><span class="grad" aria-hidden="true"></span><span>close</span><span>→</span><span>far</span></div>
     </div>
   </section>
 
@@ -108,8 +108,7 @@
   <main id="tab-companies" class="tabpage" hidden>
     <section class="panel">
       <div class="bar qhead">
-        <h2>How each company's frontier moved</h2>
-        <div class="group" role="group" aria-label="Quarters" data-quarters></div>
+        <h2>Each company's models</h2>
       </div>
     </section>
     <div id="company-rows" class="tabpage"></div>
