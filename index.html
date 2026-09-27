@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>llm3d</title>
+<meta name="description" content="Compare AI models by intelligence, price and tokens in 3D, using Artificial Analysis Intelligence Index data.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Cpath d='M9 23V9M9 23h14M9 23l9-7' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="logo">llm3d</span><span class="tag">Compare AI models by intelligence, price and tokens used</span></div>
+    <nav class="tabs" role="tablist" aria-label="Pages">
+      <button role="tab" type="button" data-tab="home" aria-selected="true">Home</button>
+      <button role="tab" type="button" data-tab="companies" aria-selected="false">Companies</button>
+    </nav>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <main id="tab-home" class="tabpage">
+
+  <section class="panel" aria-label="3D model chart">
+    <div class="bar">
+      <div class="group" role="group" aria-label="Models">
+        <span class="lbl">Models</span>
+        <span id="companies" class="group"></span>
+        <button class="link" id="reset-models" type="button">Top model per company</button>
+        <button class="link" id="clear-models" type="button">Clear</button>
+      </div>
+    </div>
+    <div class="bar">
+      <div class="group" role="group" aria-label="Efficient-scaling target">
+        <button class="tog" id="target" aria-pressed="false" type="button">
+          <svg width="24" height="10" aria-hidden="true"><path d="M1 9 Q3 1 23 1" fill="none" stroke="var(--target)" stroke-width="2.5" stroke-dasharray="4 3"/></svg>
+          Efficient-scaling target
+        </button>
+        <div class="field" id="target-ctl" aria-disabled="true">
+          <label for="shape">Climb to 100</label>
+          <select id="shape">
+            <option value="lin">Steady climb</option>
+            <option value="quad" selected>Gentle curve</option>
+            <option value="cubic">Strong early curve</option>
+            <option value="exp">Quick gains, then plateau</option>
+            <option value="sqrt">Fast start, then eases off</option>
+            <option value="log">Most gains up front</option>
+          </select>
+          <small class="math" id="shape-math"></small>
+        </div>
+        <div class="field" id="reach-ctl" aria-disabled="true">
+          <label for="reach">Reaches 100 using</label>
+          <input type="range" id="reach" min="20" max="90" step="5" value="50">
+          <output id="reach-out" for="reach"></output>
+          <small class="math" id="reach-abs"></small>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div id="plot" role="img" aria-label="3D chart of Intelligence Index against cost per task and output tokens per task"></div>
+
+      <div class="overlay left" role="group" aria-label="View">
+        <button class="seg" data-view="iso" aria-pressed="true" type="button">3D overview</button>
+        <button class="seg" data-view="cost" aria-pressed="false" type="button">Intelligence vs price</button>
+        <button class="seg" data-view="tok" aria-pressed="false" type="button">Intelligence vs tokens</button>
+      </div>
+
+      <div class="overlay right" role="group" aria-label="Chart tools">
+        <button class="icon" id="tour" aria-pressed="true" type="button" title="Auto-rotate through the views">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-1.9-4.6M16.5 3.5v3.3h-3.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="sr">Auto-rotate</span>
+        </button>
+        <button class="icon" id="drops" aria-pressed="false" type="button" title="Drop lines to the floor">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="5" r="2" fill="currentColor"/><circle cx="14" cy="8" r="2" fill="currentColor"/><path d="M6 7v10M14 10v7M3 17h14" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></svg>
+          <span class="sr">Drop lines</span>
+        </button>
+        <button class="icon" id="shadows" aria-pressed="false" type="button" title="Floor shadows">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9l5-4 4 3 5-4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 16l5-2 4 1 5-2" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".45"/></svg>
+          <span class="sr">Floor shadows</span>
+        </button>
+        <div class="scale" role="group" aria-label="Scale">
+          <button class="mini" data-scale="linear" aria-pressed="true" type="button" title="Axes start at zero">Linear</button>
+          <button class="mini" data-scale="log" aria-pressed="false" type="button" title="Spread out cheap and small models">Log</button>
+        </div>
+      </div>
+
+      <div class="gap-key" id="gap-key" hidden><span>Distance to target</span><span class="grad" aria-hidden="true"></span><span>close</span><span>→</span><span>far</span></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="How the frontier moved">
+    <div class="bar qhead">
+      <h2>How the frontier moved</h2>
+      <div class="group" role="group" aria-label="Quarters" data-quarters></div>
+    </div>
+    <div class="qgrid">
+      <div class="qcell"><h3>Intelligence vs price</h3><div id="q-cost" class="qplot" role="img" aria-label="Pareto frontier of intelligence against cost per task, by quarter"></div></div>
+      <div class="qcell"><h3>Intelligence vs tokens</h3><div id="q-tok" class="qplot" role="img" aria-label="Pareto frontier of intelligence against output tokens per task, by quarter"></div></div>
+    </div>
+  </section>
+
+  </main>
+
+  <main id="tab-companies" class="tabpage" hidden>
+    <section class="panel">
+      <div class="bar qhead">
+        <h2>How each company's frontier moved</h2>
+        <div class="group" role="group" aria-label="Quarters" data-quarters></div>
+      </div>
+    </section>
+    <div id="company-rows" class="tabpage"></div>
+  </main>
+
+  <footer class="attr" id="attr">
+    Data: <a href="https://artificialanalysis.ai" target="_blank" rel="noopener">Artificial Analysis</a> Intelligence Index, cost per task and output tokens per task.
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/3.0.1/plotly.min.js"></script>
+<script src="data/models.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
