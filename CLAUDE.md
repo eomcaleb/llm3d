@@ -24,7 +24,7 @@ Do not hand-edit the numbers in `data/models.*`; regenerate them.
 - **Loading screen:** three bouncing bars and "llm3d Plotting the models…". It stays until the 3D chart has painted, then fades. If Plotly or the data can't load, it shows an error.
 - **Footer:** the only text below the charts is the Artificial Analysis attribution. Attribution is required; never remove it.
 - **No extra text:** no explanatory paragraphs, notes or data tables.
-- **Look:** black background, Inter font, dark theme only.
+- **Look:** black background, Inter font, dark theme only. Interface colors use the supplied brand palette only: white #FFFFFF, gray #636363, yellow #F8FF63, pink #FF63F4, blue #6374FF, red #FF6363, green #63FF77, orange #F59B14. Yellow highlights names and selected controls; pink marks focus; blue marks attribution links. Graphs and their color keys retain their existing colors, with separate chart text/border variables.
 - **Mouse pointer:** the normal pointer shows over the charts.
 
 ## Home tab
@@ -51,7 +51,7 @@ Do not hand-edit the numbers in `data/models.*`; regenerate them.
   - **Walls:** the two vertical walls have a faint tint, so it reads which side is in front while rotating.
 - **Lines:** each family is one line across its effort levels, from lightest to heaviest effort, in the company color. A family with one configuration is a single point.
 - **Views** (buttons inside the chart, top left): "3D overview", "Intelligence vs price", "Intelligence vs tokens". The flat views glide the camera there and hide the axis that points at the viewer.
-- **Auto-rotate** (icon inside the chart, top right): **on by default**. It loops a fixed path:
+- **Auto-rotate** (icon inside the chart, top right): **on by default**, except with reduced-motion preferences. It loops a fixed path:
   1. Swing one way to one angle.
   2. Swing back the other way to another angle.
   3. Rise to a top-down view.
@@ -95,7 +95,9 @@ Do not hand-edit the numbers in `data/models.*`; regenerate them.
 
 - **Charts redraw only when something changes:** once per toggle or setting. Never rebuild a chart on every animation frame, and no draw-in animations.
 - **The only per-frame work is moving the 3D camera** (auto-rotate and view glides), at about 30 updates a second with `Plotly.relayout` on the camera only.
-- **Load order:** the 3D chart draws first; the 2D charts draw after it has painted.
+- **Load order:** deferred scripts download while HTML parses. The 3D chart draws first; secondary charts render one at a time when near the viewport.
+- **Scheduling:** coalesce rapid setting changes and allow only one 3D Plotly operation at a time. Pause camera animation while the document, Home tab, or 3D chart is hidden.
+- **GPU budget:** use `plotGlPixelRatio: 1` to limit 3D framebuffer size. Respect reduced-motion preferences by starting with auto-rotate off.
 - **Adding a feature:** prefer the simpler version when a feature would add per-frame work.
 
 ## Code layout

@@ -45,7 +45,7 @@ const DEFAULT_COMPANIES = ["Anthropic", "OpenAI", "Google", "SpaceXAI", "Kimi", 
 // companies with their own row on the Companies tab
 const COMPANY_TAB = ["Anthropic", "OpenAI", "SpaceXAI", "DeepSeek", "Kimi"];
 
-const state = { selected: new Set(), cam: "iso", target: true, shape: "quad", reach: 50, spin: true, qon: {} };
+const state = { selected: new Set(), cam: "iso", target: true, shape: "quad", reach: 50, spin: !reduceMotion, qon: {} };
 let DATA, MODELS, FAMILIES, COMPANIES, AXES, QUARTERS;
 
 // ---------- data ----------
@@ -132,7 +132,7 @@ const range = max => Array.from({ length: Math.floor(max / step(max)) + 1 }, (_,
 // grid, walls and axes drawn as fixed 3D geometry out of the zero corner, so nothing jumps sides while rotating;
 // labels are scene annotations, pinned to a 3D spot but drawn at a fixed on-screen size
 function frame() {
-  const { x: X, y: Y, z: Z } = AXES, g = css("--grid"), ink = css("--ink-2"), hi = css("--ink"), ann = [];
+  const { x: X, y: Y, z: Z } = AXES, g = css("--grid"), ink = css("--chart-ink-2"), hi = css("--chart-ink"), ann = [];
   const xv = range(X.max), yv = range(Y.max), zv = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
   const gx = [], gy = [], gz = [], seg = (a, b) => { gx.push(a[0], b[0], null); gy.push(a[1], b[1], null); gz.push(a[2], b[2], null); };
   xv.forEach(v => { seg([v, 0, 0], [v, Y.max, 0]); seg([v, 0, 0], [v, 0, Z.max]); });
@@ -145,7 +145,7 @@ function frame() {
     wall([0, 0, 0, 0], [0, Y.max, Y.max, 0], [0, 0, Z.max, Z.max], css("--wall-a")),
     wall([0, X.max, X.max, 0], [0, 0, 0, 0], [0, 0, Z.max, Z.max], css("--wall-b")),
     { type: "scatter3d", mode: "lines", x: gx, y: gy, z: gz, line: { color: g, width: 1 }, hoverinfo: "skip", showlegend: false },
-    { type: "scatter3d", mode: "lines", x: [X.max, 0, 0, 0, 0], y: [0, 0, Y.max, 0, 0], z: [0, 0, 0, 0, Z.max], line: { color: css("--ink-3"), width: 3 }, hoverinfo: "skip", showlegend: false }
+    { type: "scatter3d", mode: "lines", x: [X.max, 0, 0, 0, 0], y: [0, 0, Y.max, 0, 0], z: [0, 0, 0, 0, Z.max], line: { color: css("--chart-ink-3"), width: 3 }, hoverinfo: "skip", showlegend: false }
   ];
   const label = (x, y, z, text, where, size, color) => ann.push({ x, y, z, text, showarrow: false, font: { family: FONT, size, color },
     xanchor: where === "left" ? "right" : "center", yanchor: where === "below" ? "top" : where === "above" ? "bottom" : "middle",
@@ -176,7 +176,7 @@ function scene() {
     T.push({ type: "scatter3d", mode: P.length > 1 ? "lines+markers+text" : "markers+text", x: P.map(m => m.cost), y: P.map(m => m.tokens), z: P.map(m => m.index),
       line: { color: f.color, width: 5 },
       marker: { size: f.symbol === "x" ? 3.5 : 5, color: f.color, symbol: f.symbol, line: { color: open ? f.color : surf, width: open ? 2 : 1 } },
-      text: P.map((_, i) => i === P.length - 1 ? f.label : ""), textposition: "top center", textfont: { family: FONT, size: 12, color: css("--ink") },
+      text: P.map((_, i) => i === P.length - 1 ? f.label : ""), textposition: "top center", textfont: { family: FONT, size: 12, color: css("--chart-ink") },
       hovertext: P.map(m => hover(m, C)), hoverinfo: "text", showlegend: false });
   }
   if (C) {
@@ -210,27 +210,65 @@ function liveCam() {
   try { const c = plot._fullLayout.scene._scene.getCamera(); if (c && c.eye) return { eye: { ...c.eye }, up: { x: 0, y: 0, z: 1 }, projection: ORTHO }; } catch (e) { }
   return camNow;
 }
+// Coalesce input bursts and never overlap a scene rebuild with a camera update.
+let plotBusy = false, drawPending = null;
+const nextPaint = () => new Promise(resolve => requestAnimationFrame(resolve));
 function draw() {
+  if (drawPending) return drawPending;
+  drawPending = (async () => {
+    await nextPaint();
+    while (plotBusy) await nextPaint();
+    drawPending = null;
+    plotBusy = true;
+    try { await renderScene(); }
+    finally { plotBusy = false; }
+  })();
+  return drawPending;
+}
+function renderScene() {
   const { T, ann } = scene(), ax = a => ({ visible: false, showspikes: false, range: [a.min, a.max] });
   return Plotly.react(plot, T, {
-    paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"), margin: { l: 0, r: 0, t: 0, b: 0 }, font: { family: FONT, color: css("--ink-2") }, showlegend: false,
-    hoverlabel: { bgcolor: "#0d0d0d", bordercolor: css("--line"), font: { family: FONT, size: 12.5, color: css("--ink") } },
+    paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"), margin: { l: 0, r: 0, t: 0, b: 0 }, font: { family: FONT, color: css("--chart-ink-2") }, showlegend: false,
+    hoverlabel: { bgcolor: "#0d0d0d", bordercolor: css("--chart-line"), font: { family: FONT, size: 12.5, color: css("--chart-ink") } },
     scene: { xaxis: ax(AXES.x), yaxis: ax(AXES.y), zaxis: ax(AXES.z), aspectmode: "manual", aspectratio: { x: 1.25, y: 1.1, z: 0.85 }, camera: camNow, annotations: ann }
-  }, { displaylogo: false, responsive: true, modeBarButtonsToRemove: ["toImage", "resetCameraLastSave3d"] });
+  }, { displaylogo: false, responsive: true, plotGlPixelRatio: 1, modeBarButtonsToRemove: ["toImage", "resetCameraLastSave3d"] });
 }
-const setCam = c => { camNow = c; Plotly.relayout(plot, { "scene.camera": c }); };
+const setCam = c => {
+  camNow = c;
+  plotBusy = true;
+  Promise.resolve().then(() => Plotly.relayout(plot, { "scene.camera": c }))
+    .catch(console.error).finally(() => { plotBusy = false; });
+};
 
 // ---------- camera: one frame loop that only ever moves the camera ----------
 // Auto-rotate follows ROTATE_PATH: glide to each stop in turn (eased), pause briefly, and loop.
 const FRAME_MS = 33, ROTATE_PAUSE = 900;      // ~30 camera updates a second keeps motion smooth and cheap
 let raf = null, lastFrame = 0, pointerDown = false, camMove = null, rotateStep = 0, rotateTimer = null;
 const sph = e => { const r = Math.hypot(e.x, e.y, e.z); return { r, az: Math.atan2(e.y, e.x), el: Math.asin(e.z / r) }; };
-function ensureLoop() { if (!raf) raf = requestAnimationFrame(loop); }
+let sceneVisible = true, pausedAt = null;
+function cameraActive() { return sceneVisible && !document.hidden && !document.getElementById("tab-home").hidden; }
+function syncCamera() {
+  if (!cameraActive()) {
+    if (pausedAt === null) pausedAt = performance.now();
+    if (raf) cancelAnimationFrame(raf);
+    raf = null;
+  } else {
+    if (pausedAt !== null && camMove) camMove.t0 += performance.now() - Math.max(pausedAt, camMove.t0);
+    pausedAt = null;
+    if (camMove) ensureLoop();
+  }
+}
+function ensureLoop() { if (!raf && cameraActive()) raf = requestAnimationFrame(loop); }
+document.addEventListener("visibilitychange", syncCamera);
+if ("IntersectionObserver" in window) new IntersectionObserver(entries => {
+  sceneVisible = entries[0].isIntersecting;
+  syncCamera();
+}).observe(plot);
 function loop(ts) {
   raf = null;
-  if (!camMove || pointerDown || document.getElementById("tab-home").hidden) return;
+  if (!camMove || pointerDown || !cameraActive()) return;
   ensureLoop();
-  if (ts - lastFrame < FRAME_MS) return;
+  if (plotBusy || drawPending || ts - lastFrame < FRAME_MS) return;
   lastFrame = ts;
   const M = camMove, u = Math.min(1, (ts - M.t0) / M.ms), k = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
   const r = M.from.r + (M.to.r - M.from.r) * k, az = M.from.az + M.dAz * k, el = M.from.el + (M.to.el - M.from.el) * k;
@@ -277,13 +315,13 @@ function ranges() {
                                index: [0, Math.ceil(top * 1.12 / 5) * 5] });
 }
 function chart2d(el, T, which, legend) {
-  const ink = css("--ink-2"), R = ranges();
-  const ax = (t, extra) => Object.assign({ title: { text: t, font: { size: 12, color: ink, family: FONT } }, gridcolor: css("--grid"), zeroline: true, zerolinecolor: css("--ink-3"),
-    linecolor: css("--line"), tickfont: { size: 11, color: ink, family: FONT }, nticks: 5, fixedrange: true }, extra);
+  const ink = css("--chart-ink-2"), R = ranges();
+  const ax = (t, extra) => Object.assign({ title: { text: t, font: { size: 12, color: ink, family: FONT } }, gridcolor: css("--grid"), zeroline: true, zerolinecolor: css("--chart-ink-3"),
+    linecolor: css("--chart-line"), tickfont: { size: 11, color: ink, family: FONT }, nticks: 5, fixedrange: true }, extra);
   return Plotly.react(el, T, {
     paper_bgcolor: css("--surface"), plot_bgcolor: css("--surface"), margin: { l: 56, r: 24, t: 10, b: 48 }, font: { family: FONT, color: ink },
     showlegend: legend, legend: { orientation: "h", x: 0, y: 1.08, font: { size: 11.5, color: ink } },
-    hoverlabel: { bgcolor: "#0d0d0d", bordercolor: css("--line"), font: { family: FONT, size: 12, color: css("--ink") } },
+    hoverlabel: { bgcolor: "#0d0d0d", bordercolor: css("--chart-line"), font: { family: FONT, size: 12, color: css("--chart-ink") } },
     xaxis: which === "cost" ? ax("Cost per task", { range: R.cost, tickprefix: "$" }) : ax("Output tokens per task", { range: R.tok }),
     yaxis: ax("Intelligence Index", { range: R.index })
   }, { displaylogo: false, responsive: true, displayModeBar: false });
@@ -303,7 +341,44 @@ function quarterChart(el, which) {
   }
   return chart2d(el, T, which, true);
 }
-function drawQuarters() { quarterChart("q-cost", "cost"); quarterChart("q-tok", "tok"); }
+// Render secondary charts only near the viewport, one at a time, using current filters.
+const lazyCharts = new Map();
+let secondaryBusy = false;
+const chartObserver = "IntersectionObserver" in window ? new IntersectionObserver(entries => {
+  for (const entry of entries) lazyCharts.get(entry.target).visible = entry.isIntersecting;
+  flushCharts();
+}, { rootMargin: "150px" }) : null;
+function queueChart(el, render) {
+  if (typeof el === "string") el = document.getElementById(el);
+  let job = lazyCharts.get(el);
+  if (!job) {
+    job = { visible: !chartObserver, dirty: true, render };
+    lazyCharts.set(el, job);
+    if (chartObserver) chartObserver.observe(el);
+  } else { job.render = render; job.dirty = true; }
+  flushCharts();
+}
+async function flushCharts() {
+  if (secondaryBusy || document.hidden) return;
+  secondaryBusy = true;
+  try {
+    for (;;) {
+      const entry = [...lazyCharts].find(([el, job]) => job.dirty && job.visible && el.getClientRects().length);
+      if (!entry || document.hidden) break;
+      const [, job] = entry;
+      await nextPaint();
+      if (document.hidden || !entry[0].getClientRects().length || !job.visible) break;
+      job.dirty = false;
+      await job.render();
+    }
+  } catch (error) { console.error(error); }
+  finally { secondaryBusy = false; }
+}
+document.addEventListener("visibilitychange", flushCharts);
+function drawQuarters() {
+  queueChart("q-cost", () => quarterChart("q-cost", "cost"));
+  queueChart("q-tok", () => quarterChart("q-tok", "tok"));
+}
 
 let companiesBuilt = false;
 const companyOn = {};   // family id -> shown on the Companies tab (all on by default)
@@ -346,7 +421,7 @@ function buildCompanyRows() {
   }
   companiesBuilt = true;
 }
-function drawCompanyRow(c) { familyChart(c.rowEls[0], c, "cost"); familyChart(c.rowEls[1], c, "tok"); }
+function drawCompanyRow(c) { c.rowEls.forEach((el, i) => queueChart(el, () => familyChart(el, c, i ? "tok" : "cost"))); }
 
 // ---------- controls ----------
 function buildCompanies() {
@@ -431,6 +506,8 @@ function showTab(name) {
   document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
   document.getElementById("tab-home").hidden = name !== "home";
   document.getElementById("tab-companies").hidden = name !== "companies";
+  syncCamera();
+  flushCharts();
   if (name === "companies") {
     if (!companiesBuilt) { buildCompanyRows(); COMPANIES.forEach(c => c.rowEls && drawCompanyRow(c)); }
   } else {
@@ -447,11 +524,16 @@ function start() {
   buildCompanies();
   wire();
   targetText();
+  document.getElementById("tour").setAttribute("aria-pressed", state.spin);
   // the 3D chart first; the loading screen lifts once it has painted, then the 2D charts follow
   draw().then(() => {
     document.getElementById("loading").classList.add("done");
     setTimeout(() => document.getElementById("loading").remove(), 400);
     requestAnimationFrame(() => setTimeout(() => { drawQuarters(); if (state.spin) rotateNext(); }, 50));
+  }).catch(error => {
+    console.error(error);
+    const msg = document.querySelector("#loading .msg");
+    if (msg) msg.textContent = "Couldn't render the chart. Try reloading or enabling WebGL in your browser.";
   });
 }
 if (window.Plotly && window.LLM3D_DATA) start();
