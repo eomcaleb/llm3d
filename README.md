@@ -12,10 +12,14 @@ Live site: https://eomcaleb.github.io/llm3d/
 
 - **Pick models by company:** each company has a dropdown listing its model families. The chart starts with the top model from a set of leading labs; every other company starts switched off.
 - **Effort levels:** a model family with several effort levels (low → max) is drawn as one line.
-- **Views:** switch between the 3D overview and two flat views, "Intelligence vs price" and "Intelligence vs tokens". Auto-rotate slowly spins the 3D overview. It's on by default; the rotate icon inside the chart turns it off, and picking a flat view stops it.
+- **Views:** switch between the 3D overview and two flat views, "Intelligence vs price" and "Intelligence vs tokens". Auto-rotate loops a path: it swings one way, swings back the other way, then rises to a top-down view. It's on by default; the rotate icon inside the chart turns it off, and dragging or picking a view stops it.
 - **Efficient-scaling target** (on by default): a reference curve for a model that reaches a perfect 100 using only part of the budget. Its dropdown switches it on or off and sets how it climbs and how much budget it needs. Faint connectors show each model's distance from the curve, from green (close) to red (far).
-- **How the frontier moved:** Pareto frontiers of intelligence vs price and intelligence vs tokens for the models released in each quarter, one color per quarter.
-- **Companies tab:** one row per company (Anthropic, OpenAI, SpaceXAI, DeepSeek, Kimi). Each row shows every model family as its own line, across its effort levels, on intelligence vs price and intelligence vs tokens charts. A toggle for each family shows or hides it.
+- **How the frontier moved:** Pareto frontiers of intelligence vs price and intelligence vs tokens for the models released in each quarter, in shades of one color (newer quarters brighter).
+- **Companies tab:** one row per company (Anthropic, OpenAI, SpaceXAI, DeepSeek, Kimi). Each row shows every model family as its own line, across its effort levels, on intelligence vs price and intelligence vs tokens charts. Each model class gets its own color and versions are shades of it; a toggle for each family shows or hides it.
+
+## Conventions
+
+[`CLAUDE.md`](CLAUDE.md) records how the visualization is meant to work: defaults, colors, what was removed on purpose and the performance rules. Read it before adding models or changing the charts.
 
 ## Run locally
 

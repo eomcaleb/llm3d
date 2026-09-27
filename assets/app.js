@@ -19,7 +19,26 @@ const BRAND = {
 };
 const QUIET = ["#9ca3af", "#a8a29e", "#94a3b8", "#b4a7d6", "#8fb8a8", "#c9a38a", "#a3a3a3", "#9fb3c8"];
 const SYMBOLS = ["circle", "diamond", "square", "cross", "x", "circle-open", "diamond-open", "square-open"];
-const FAMILY_COLORS = ["#3987e5", "#e0662f", "#22c55e", "#c64fc4", "#e0c53a", "#7dd3fc", "#fb7185", "#a3e635", "#cdb8ff", "#fdba74", "#1aa39a", "#f472b6", "#d4d4d4", "#94a3b8"];
+const CLASS_COLORS = ["#3987e5", "#e0662f", "#22c55e", "#c64fc4", "#e0c53a", "#7dd3fc", "#fb7185", "#a3e635", "#cdb8ff", "#fdba74", "#1aa39a", "#f472b6", "#d4d4d4", "#94a3b8"];
+// A model's class is its name without version numbers or bracketed dates: "Claude Opus 5.5" → "Claude Opus",
+// "Claude 4.5 Sonnet" → "Claude Sonnet", "GPT-6 Sol" → "GPT Sol", "DeepSeek V4 Pro 0813" → "DeepSeek Pro", "Kimi K2.7 Code" → "Kimi Code".
+// Size tags such as "120b" stay, so "gpt-oss-120b" and "gpt-oss-20b" are separate classes.
+function modelClass(label) {
+  return label.replace(/\s*\([^)]*\)/g, "").replace(/(^|[\s-])[KVMkvm]?\d+(\.\d+)*(?![\dbBkK])/g, "$1").replace(/\s*-\s+|\s+-\s*|-$/g, " ").replace(/\s+/g, " ").trim();
+}
+function shade(hex, t) {   // t = 0 keeps the colour, larger t mixes toward the page background
+  const n = parseInt(hex.slice(1), 16), mix = c => Math.round(c * (1 - t));
+  return "#" + [n >> 16 & 255, n >> 8 & 255, n & 255].map(c => mix(c).toString(16).padStart(2, "0")).join("");
+}
+// one colour per family: hue by class, shade by release order within the class (newest brightest)
+function familyColors(c) {
+  const classes = [...new Set(c.fams.map(f => modelClass(f.label)))], out = {};
+  for (const [i, cls] of classes.entries()) {
+    const fams = c.fams.filter(f => modelClass(f.label) === cls).sort((a, b) => b.points.map(m => m.released).sort().pop().localeCompare(a.points.map(m => m.released).sort().pop()));
+    fams.forEach((f, k) => { out[f.id] = shade(CLASS_COLORS[i % CLASS_COLORS.length], Math.min(0.6, k * 0.28)); });
+  }
+  return out;
+}
 const EFFORT_ORDER = ["minimal", "low", "medium", "high", "xhigh", "max"];
 // companies shown by default, in this order; every other company starts switched off
 const DEFAULT_COMPANIES = ["Anthropic", "OpenAI", "Google", "SpaceXAI", "Kimi", "DeepSeek", "Z AI", "Meta", "NVIDIA", "MiniMax", "Mistral"];
@@ -175,7 +194,14 @@ function scene() {
 }
 
 const ORTHO = { type: "orthographic" };
-const VIEWS = { iso: { x: 1.3, y: 0.5, z: 0.45 }, cost: { x: 0, y: -1.45, z: 0 }, tok: { x: 1.45, y: 0, z: 0 } };
+// eye position from azimuth / elevation in degrees (the chart is always seen from the open side of the zero corner)
+const eyeAt = (azDeg, elDeg, r = 1.45) => { const az = azDeg * Math.PI / 180, el = elDeg * Math.PI / 180; return { x: r * Math.cos(el) * Math.cos(az), y: r * Math.cos(el) * Math.sin(az), z: r * Math.sin(el) }; };
+const VIEWS = {
+  iso: { x: 1.3, y: 0.5, z: 0.45 }, cost: { x: 0, y: -1.45, z: 0 }, tok: { x: 1.45, y: 0, z: 0 },
+  // auto-rotate stops: swing one way, swing back the other way, then rise to look straight down
+  swingA: eyeAt(78, 22), swingB: eyeAt(8, 24), top: eyeAt(40, 84)
+};
+const ROTATE_PATH = [["swingA", 6000], ["swingB", 7000], ["top", 4500], ["iso", 4500]];
 const camAt = eye => ({ eye: { ...eye }, up: { x: 0, y: 0, z: 1 }, projection: ORTHO });
 
 const plot = document.getElementById("plot");
@@ -194,45 +220,45 @@ function draw() {
 }
 const setCam = c => { camNow = c; Plotly.relayout(plot, { "scene.camera": c }); };
 
-// ---------- camera: auto-rotate spin and view changes share one frame loop that only moves the camera ----------
-const SPIN_DEG_PER_S = 7, FRAME_MS = 33;      // ~30 camera updates a second keeps rotation smooth and cheap
-let raf = null, lastFrame = 0, spinT0 = 0, pointerDown = false, camMove = null;
+// ---------- camera: one frame loop that only ever moves the camera ----------
+// Auto-rotate follows ROTATE_PATH: glide to each stop in turn (eased), pause briefly, and loop.
+const FRAME_MS = 33, ROTATE_PAUSE = 900;      // ~30 camera updates a second keeps motion smooth and cheap
+let raf = null, lastFrame = 0, pointerDown = false, camMove = null, rotateStep = 0, rotateTimer = null;
 const sph = e => { const r = Math.hypot(e.x, e.y, e.z); return { r, az: Math.atan2(e.y, e.x), el: Math.asin(e.z / r) }; };
 function ensureLoop() { if (!raf) raf = requestAnimationFrame(loop); }
 function loop(ts) {
   raf = null;
-  const home = !document.getElementById("tab-home").hidden;
-  const wanted = camMove || (state.spin && home && !pointerDown);
-  if (!wanted) return;
+  if (!camMove || pointerDown || document.getElementById("tab-home").hidden) return;
   ensureLoop();
   if (ts - lastFrame < FRAME_MS) return;
-  const dt = Math.min(0.1, (ts - (lastFrame || ts)) / 1000); lastFrame = ts;
-  if (camMove) {
-    const M = camMove, u = Math.min(1, (ts - M.t0) / M.ms), k = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
-    const r = M.from.r + (M.to.r - M.from.r) * k, az = M.from.az + M.dAz * k, el = M.from.el + (M.to.el - M.from.el) * k;
-    setCam(camAt({ x: r * Math.cos(el) * Math.cos(az), y: r * Math.cos(el) * Math.sin(az), z: r * Math.sin(el) }));
-    if (u >= 1) { camMove = null; state.cam = M.view; camNow = camAt(VIEWS[M.view]); draw(); }   // redraw once so the collapsed axis hides its labels
-    return;
+  lastFrame = ts;
+  const M = camMove, u = Math.min(1, (ts - M.t0) / M.ms), k = u < .5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+  const r = M.from.r + (M.to.r - M.from.r) * k, az = M.from.az + M.dAz * k, el = M.from.el + (M.to.el - M.from.el) * k;
+  setCam(camAt({ x: r * Math.cos(el) * Math.cos(az), y: r * Math.cos(el) * Math.sin(az), z: r * Math.sin(el) }));
+  if (u >= 1) {
+    camMove = null; camNow = camAt(VIEWS[M.view]);
+    const flat = M.view === "cost" || M.view === "tok";
+    if (flat || state.cam !== "iso") { state.cam = flat ? M.view : "iso"; draw(); }   // flat views hide the axis that points at you
+    M.onDone && M.onDone();
   }
-  if (!spinT0) spinT0 = ts;
-  const ramp = Math.min(1, (ts - spinT0) / 1500) ** 2, e = camNow.eye, r = Math.hypot(e.x, e.y);
-  const az = Math.atan2(e.y, e.x) + SPIN_DEG_PER_S * Math.PI / 180 * dt * ramp;
-  setCam(camAt({ x: r * Math.cos(az), y: r * Math.sin(az), z: e.z }));
 }
-function moveCamera(view, ms) {
+function moveCamera(view, ms, onDone) {
   const from = sph(liveCam().eye), to = sph(VIEWS[view]);
   let dAz = to.az - from.az; if (dAz > Math.PI) dAz -= 2 * Math.PI; if (dAz < -Math.PI) dAz += 2 * Math.PI;
-  if (view === "iso" && state.cam !== "iso") { state.cam = "iso"; draw(); }
-  camMove = { from, to, dAz, t0: performance.now(), ms: reduceMotion ? 1 : ms, view };
+  if (state.cam !== "iso" && view !== "cost" && view !== "tok") { state.cam = "iso"; draw(); }
+  camMove = { from, to, dAz, t0: performance.now(), ms: reduceMotion ? 1 : ms, view, onDone };
   lastFrame = 0; ensureLoop();
+}
+function rotateNext() {
+  if (!state.spin) return;
+  const [view, ms] = ROTATE_PATH[rotateStep++ % ROTATE_PATH.length];
+  moveCamera(view, ms, () => { if (state.spin) rotateTimer = setTimeout(rotateNext, ROTATE_PAUSE); });
 }
 function setSpin(on) {
   state.spin = on; document.getElementById("tour").setAttribute("aria-pressed", on);
-  if (on) {
-    camNow = liveCam(); spinT0 = 0; lastFrame = 0;
-    if (state.cam !== "iso") { state.cam = "iso"; markView("iso"); draw(); }
-    ensureLoop();
-  }
+  clearTimeout(rotateTimer);
+  if (on) { camNow = liveCam(); markView("iso"); rotateNext(); }
+  else if (camMove && camMove.onDone) camMove = null;          // stop where it is
 }
 function markView(v) { document.querySelectorAll("[data-view]").forEach(b => b.setAttribute("aria-pressed", b.dataset.view === v)); }
 
@@ -245,8 +271,10 @@ function frontier(set, key) {
 // fixed ranges from 0,0 shared by every 2D chart, with room to spare, so charts compare at a glance
 let RANGES;
 function ranges() {
-  return RANGES || (RANGES = { cost: [0, nice(Math.max(...MODELS.map(m => m.cost)) * 1.35)], tok: [0, nice(Math.max(...MODELS.map(m => m.tokens)) * 1.35)],
-                               index: [0, nice(Math.max(...MODELS.map(m => m.index)) * 1.5)] });
+  // fitted to the data (a little headroom for labels), not stretched to 100
+  const top = Math.max(...MODELS.map(m => m.index));
+  return RANGES || (RANGES = { cost: [0, nice(Math.max(...MODELS.map(m => m.cost)) * 1.12)], tok: [0, nice(Math.max(...MODELS.map(m => m.tokens)) * 1.12)],
+                               index: [0, Math.ceil(top * 1.12 / 5) * 5] });
 }
 function chart2d(el, T, which, legend) {
   const ink = css("--ink-2"), R = ranges();
@@ -270,7 +298,7 @@ function quarterChart(el, which) {
     const col = css(q.v);
     T.push({ type: "scatter", mode: "lines+markers+text", name: q.label, x: fr.map(key), y: fr.map(m => m.index), line: { color: col, width: 2.5, shape: "hv" },
       marker: { size: 7, color: col, line: { color: "#000", width: 1 } },
-      text: fr.map(m => m.name), textposition: "top right", textfont: { family: FONT, size: 10.5, color: col }, cliponaxis: false,
+      text: fr.map(m => m.name.replace(/ \(/, "<br>(")), textposition: "top right", textfont: { family: FONT, size: 10.5, color: col }, cliponaxis: false,
       hovertext: fr.map(m => `<b>${q.label}</b> · ${m.name}<br>${m.company} · released ${fmtDate(m.released)}<br>Index <b>${m.index.toFixed(1)}</b><br>${fmt$(m.cost)} per task · ${fmtK(m.tokens)} tokens`), hoverinfo: "text" });
   }
   return chart2d(el, T, which, true);
@@ -281,9 +309,10 @@ let companiesBuilt = false;
 const companyOn = {};   // family id -> shown on the Companies tab (all on by default)
 function familyChart(el, c, which) {
   const key = keyOf(which), T = [];
-  c.fams.forEach((f, i) => {
+  const colors = c.colors || (c.colors = familyColors(c));
+  c.fams.forEach(f => {
     if (!companyOn[f.id]) return;
-    const col = FAMILY_COLORS[i % FAMILY_COLORS.length], P = f.points, last = P.length - 1;
+    const col = colors[f.id], P = f.points, last = P.length - 1;
     T.push({ type: "scatter", mode: "lines+markers+text", name: f.label, x: P.map(key), y: P.map(m => m.index),
       line: { color: col, width: 2.5 }, marker: { size: 7, color: col, line: { color: "#000", width: 1 } },
       text: P.map((_, j) => j === last ? f.label : ""), textposition: "top right", textfont: { family: FONT, size: 11, color: col }, cliponaxis: false,
@@ -300,10 +329,11 @@ function buildCompanyRows() {
     const head = document.createElement("div"); head.className = "bar";
     head.innerHTML = `<h2><span class="sw" style="background:${c.color}"></span>${name}</h2>`;
     const chips = document.createElement("div"); chips.className = "group"; chips.setAttribute("role", "group"); chips.setAttribute("aria-label", name + " models");
-    c.fams.forEach((f, i) => {
+    c.colors = familyColors(c);
+    c.fams.forEach(f => {
       if (!(f.id in companyOn)) companyOn[f.id] = true;
       const b = document.createElement("button"); b.type = "button"; b.className = "mini"; b.setAttribute("aria-pressed", companyOn[f.id]);
-      b.innerHTML = `<span class="dot" style="background:${FAMILY_COLORS[i % FAMILY_COLORS.length]}"></span>`;
+      b.innerHTML = `<span class="dot" style="background:${c.colors[f.id]}"></span>`;
       b.append(document.createTextNode(f.label));
       b.onclick = () => { companyOn[f.id] = !companyOn[f.id]; b.setAttribute("aria-pressed", companyOn[f.id]); drawCompanyRow(c); };
       chips.append(b);
@@ -366,18 +396,20 @@ function wire() {
   document.getElementById("shape").onchange = e => { state.shape = e.target.value; targetText(); if (state.target) draw(); };
   document.getElementById("reach").oninput = e => { state.reach = +e.target.value; targetText(); if (state.target) draw(); };
 
-  document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { setSpin(false); markView(b.dataset.view); moveCamera(b.dataset.view, 1100); });
+  document.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { setSpin(false); camMove = null; markView(b.dataset.view); moveCamera(b.dataset.view, 1100); });
   document.getElementById("tour").onclick = () => setSpin(!state.spin);
 
   // dragging pauses the spin, which then carries on from the new angle; dragging out of a flat view makes it 3D again
-  plot.addEventListener("pointerdown", () => { pointerDown = true; camMove = null; }, { capture: true });
+  plot.addEventListener("pointerdown", () => { pointerDown = true; }, { capture: true });
   window.addEventListener("pointerup", () => {
     if (!pointerDown) return;
     pointerDown = false;
-    camNow = liveCam(); spinT0 = 0; lastFrame = 0;
-    const flat = state.cam !== "iso", e = camNow.eye, v = VIEWS[state.cam];
-    if (flat && Math.hypot(e.x - v.x, e.y - v.y, e.z - v.z) > 0.02) { state.cam = "iso"; markView("iso"); draw(); }
-    ensureLoop();
+    const before = camNow.eye; camNow = liveCam();
+    const e = camNow.eye, moved = Math.hypot(e.x - before.x, e.y - before.y, e.z - before.z) > 0.02;
+    if (!moved) { if (camMove) ensureLoop(); return; }
+    if (state.spin) setSpin(false);
+    camMove = null;
+    if (state.cam !== "iso") { state.cam = "iso"; markView("iso"); draw(); }
   });
 
   // quarter chips: each quarter's releases only; a quarter with no releases yet is disabled
@@ -402,7 +434,7 @@ function showTab(name) {
   if (name === "companies") {
     if (!companiesBuilt) { buildCompanyRows(); COMPANIES.forEach(c => c.rowEls && drawCompanyRow(c)); }
   } else {
-    Plotly.Plots.resize(plot); ensureLoop();
+    Plotly.Plots.resize(plot); if (camMove) ensureLoop();
   }
 }
 
@@ -419,7 +451,7 @@ function start() {
   draw().then(() => {
     document.getElementById("loading").classList.add("done");
     setTimeout(() => document.getElementById("loading").remove(), 400);
-    requestAnimationFrame(() => setTimeout(() => { drawQuarters(); if (state.spin) ensureLoop(); }, 50));
+    requestAnimationFrame(() => setTimeout(() => { drawQuarters(); if (state.spin) rotateNext(); }, 50));
   });
 }
 if (window.Plotly && window.LLM3D_DATA) start();
