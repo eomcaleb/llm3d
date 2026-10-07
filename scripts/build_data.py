@@ -21,6 +21,7 @@ import datetime as dt
 import json
 import pathlib
 import re
+import time
 import urllib.request
 
 UA = {"User-Agent": "Mozilla/5.0 (llm3d data build)"}
@@ -60,6 +61,7 @@ def leaderboard():
                            estimated=obj.get("intelligenceIndexIsEstimated"), index=obj.get("intelligenceIndex"),
                            cost=obj.get("intelligenceIndexCostPerTask"))
         rows.setdefault(name, rows[short])
+        rows.setdefault(slug, rows[short])   # survives renames such as "Gemini 3.5 Flash" -> "Gemini 3.5 Flash (high)"
     return rows
 
 
@@ -75,8 +77,15 @@ def families():
 
 def model_page(slug):
     s = get("/models/" + slug)
-    i = s.find('"currentModel":{') + len('"currentModel":')
-    m = json.loads(json_object(s, i))
+    i = s.find('"currentModel":{')
+    if i >= 0:
+        m = json.loads(json_object(s, i + len('"currentModel":')))
+    else:
+        # newer page layout: the model is an entry of an "initialModels" list
+        m = re.search(r'\{"id":"[^"]+","slug":"' + re.escape(slug) + '"', s)
+        if not m:
+            raise ValueError("model data not found on page")
+        m = json.loads(json_object(s, m.start()).replace('"$undefined"', "null"))
     cost = ((m.get("intelligenceIndexCostPerTask") or {}).get("cost") or {}).get("total")
     tokens = (m.get("intelligenceIndexOutputTokensPerTask") or {}).get("output")
     effort = m.get("effort") or {}
@@ -100,30 +109,47 @@ def main():
         wanted = [(r[0], r[1], r[2]) for r in ws.iter_rows(min_row=2, values_only=True) if r[0]]
         picks = []
         for name, index, company in wanted:
-            row = lb.get(name)
+            row = lb.get(name) or lb.get(re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-"))
             if row:
                 picks.append(dict(row, index=index, company=company))
     else:
         picks = list({r["slug"]: r for r in lb.values()}.values())
 
     # only models with a measured score and cost can be placed
-    picks = [p for p in picks if not p["estimated"] and p["cost"] and p["index"] is not None and p["slug"] in fam]
+    picks = [p for p in picks if not p["estimated"] and p["cost"] and p["index"] is not None]
     print(f"fetching {len(picks)} model pages ...")
 
     def enrich(p):
-        try:
-            return dict(p, **model_page(p["slug"]))
-        except Exception as e:  # keep going; report at the end
-            return dict(p, error=str(e))
+        err = None
+        for attempt in range(4):  # AA pages time out or rate-limit now and then
+            try:
+                return dict(p, **model_page(p["slug"]))
+            except Exception as e:
+                err = e
+                time.sleep(2 + 4 * attempt)
+        return dict(p, error=str(err))
 
-    with cf.ThreadPoolExecutor(10) as ex:
+    with cf.ThreadPoolExecutor(6) as ex:
         rows = list(ex.map(enrich, picks))
+    for r in rows:
+        if r.get("error"):
+            print(f"  failed: {r['short']} ({r['error']})")
+        elif not r.get("tokens") or not r.get("cost"):
+            print(f"  skipped, no measured cost/tokens: {r['short']}")
 
     models = []
     for r in rows:
         if r.get("error") or not r.get("tokens") or not r.get("cost"):
             continue
-        fslug, fname, frel = fam[r["slug"]]
+        if r["slug"] in fam:
+            fslug, fname, frel = fam[r["slug"]]
+        elif r.get("released"):
+            # Brand-new models reach the Index page's family picker a few days late; a model without effort
+            # variants is its own family until then.
+            fname = re.sub(r"\s*\([^)]*\)", "", r["name"]).strip()
+            fslug, frel = re.sub(r"[^a-z0-9]+", "-", fname.lower()).strip("-"), r["released"]
+        else:
+            continue
         models.append(dict(
             id=r["slug"], name=r["short"], family=fname, familyId=fslug, company=r["company"],
             effort=r.get("effort"), level=r.get("level"),
